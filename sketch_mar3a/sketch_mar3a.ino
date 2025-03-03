@@ -1,9 +1,4 @@
-#include <MFRC522.h>
-#include <MFRC522Extended.h>
-#include <deprecated.h>
-#include <require_cpp11.h>
-
-// Winter showcase version
+//Roshan version
 #include <ESP8266WiFi.h>
 #include <SPI.h>
 #include <MFRC522.h>
@@ -22,32 +17,8 @@ WiFiClient  Client;
 #define RST_PIN D4
 int BUZZER = D8;
 
-/*
-  lcd module:
-  5v       pin -> to -> 5v
-  gnd      pin -> to -> gnd
-  scl      pin -> to -> D1
-  sda      pin -> to -> D2
 
-  rfid card module :
-  3.3v     pin -> to -> 3.3v
-  gnd      pin -> to -> gnd
-
-  sda(ss)  pin -> to -> D3
-  rst      pin -> to -> D4
-
-  sck      pin -> to -> D5
-  mosi     pin -> to -> D7
-  miso     pin -> to -> D6
-
-  buzzer:
-  buz      pin -> to -> D8
-*/
-
-MFRC522 mfrc522(SS_PIN, RST_PIN);   // Create MFRC522 instance.
-
-String content = "";
-
+MFRC522 mfrc522(SS_PIN, RST_PIN); // Create MFRC522 instance
 
 void setup() {
   Serial.begin(9600);
@@ -75,9 +46,9 @@ void setup() {
     lcd.setCursor(0, 0);
     lcd.print("ERR conn :(");
 
-    Serial.println("Could not connect to");
+    lcd.println("Could not connect to");
 
-    Serial.println(ssid);
+    lcd.println(ssid);
     while (1) {
       delay(500);
     }
@@ -100,8 +71,8 @@ void setup() {
   digitalWrite(BUZZER, LOW);
 
 }
-void loop() {
 
+void loop() {
   if (server.hasClient()) {
     if (!Client || !Client.connected()) {
       if (Client) {
@@ -123,49 +94,83 @@ void loop() {
 
   }
 
-  if ( ! mfrc522.PICC_IsNewCardPresent())
-  {
+
+
+  // Look for new cards
+  if (!mfrc522.PICC_IsNewCardPresent() || !mfrc522.PICC_ReadCardSerial()) {
+    return; // No card detected
+  }
+
+  // Read UID (Unique Identifier) of the card
+  String cardUID = "";
+  for (byte i = 0; i < mfrc522.uid.size; i++) {
+    cardUID += String(mfrc522.uid.uidByte[i], HEX);
+  }
+  lcd.println("Card UID: " + cardUID);
+
+  // Ask the user if they want to read or write
+  lcd.println("Do you want to read or write? (r/w)");
+  while (Serial.available() == 0) {} // Wait for user input
+  char userChoice = Serial.read();
+
+  // Block number to read/write (modify as needed)
+  byte blockNumber = 4;
+  MFRC522::MIFARE_Key key;
+  for (byte i = 0; i < 6; i++) key.keyByte[i] = 0xFF; // Default key
+
+  // Authenticate the card
+  if (mfrc522.PCD_Authenticate(MFRC522::PICC_CMD_MF_AUTH_KEY_A, blockNumber, &key, &(mfrc522.uid)) != MFRC522::STATUS_OK) {
+    lcd.println("Authentication failed");
+    mfrc522.PICC_HaltA();
+    mfrc522.PCD_StopCrypto1();
     return;
   }
 
-  if ( ! mfrc522.PICC_ReadCardSerial())
-  {
-    return;
+  if (userChoice == 'w') {
+    // Write data to the card
+    lcd.println("Enter data to write (max 16 characters): ");
+    String dataToWrite = "";
+    while (Serial.available() == 0) {} // Wait for user input
+    while (Serial.available() > 0) {
+      char c = Serial.read();
+      dataToWrite += c;
+    }
+
+    // Ensure the data is 16 bytes
+    if (dataToWrite.length() < 16) {
+      dataToWrite += String(' ', 16 - dataToWrite.length());
+    }
+
+    byte buffer[16];
+    dataToWrite.getBytes(buffer, 16);
+
+    if (mfrc522.MIFARE_Write(blockNumber, buffer, 16) == MFRC522::STATUS_OK) {
+      lcd.println("Data written successfully!");
+    } else {
+      lcd.println("Failed to write data.");
+    }
+
+  } else if (userChoice == 'r') {
+    // Read data from the card
+    byte buffer[18];  // Data buffer (16 bytes + 2 CRC bytes)
+    byte size = sizeof(buffer);
+
+    if (mfrc522.MIFARE_Read(blockNumber, buffer, &size) == MFRC522::STATUS_OK) {
+      String dataRead = "";
+      for (byte i = 0; i < 16; i++) {
+        dataRead += (char)buffer[i];
+      }
+      lcd.println("Data read from card: " + dataRead);
+    } else {
+      lcd.println("Failed to read data.");
+    }
+  } else {
+    lcd.println("Invalid choice. Please enter 'r' or 'w'.");
   }
 
-  byte letter;
-  for (byte i = 0; i < mfrc522.uid.size; i++)
-  {
-    content.concat(String(mfrc522.uid.uidByte[i] < 0x10 ? " 0" : " "));
-    content.concat(String(mfrc522.uid.uidByte[i], HEX));
-  }
-
-  content.toUpperCase();
-  Serial.println(content);
-
-  lcd.clear();
-  lcd.setCursor(0, 0);
-  lcd.print("CI: ");
-  lcd.print(content);
-
-  sendDatatoWIFI();
-  content = "";
-
-  digitalWrite(BUZZER, HIGH);
-  delay(500);
-  digitalWrite(BUZZER, LOW);
-
-  delay(1000);
+  // Halt the PICC
+  mfrc522.PICC_HaltA();
+  mfrc522.PCD_StopCrypto1();
 
 }
 
-void sendDatatoWIFI() {
-  if (content != "") {
-    int str_len = content.length() + 1;
-    char char_array[str_len];
-    content.toCharArray(char_array, str_len);
-    // Serial.println(content);
-    Serial.println(char_array);
-    Client.write(char_array);
-  }
-}
