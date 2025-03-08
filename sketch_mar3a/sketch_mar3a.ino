@@ -64,7 +64,7 @@ void setup() {
   mfrc522.PCD_Init();
 
   lcd.setCursor(0, 0);
-  lcd.print("Deep 2023");
+  lcd.print("Deep 2025");
 
   digitalWrite(BUZZER, HIGH);
   delay(1000);
@@ -109,26 +109,25 @@ void loop() {
   lcd.println("Card UID: " + cardUID);
 
   // Ask the user if they want to read or write
-  lcd.println("Do you want to read or write? (r/w)");
-  while (Serial.available() == 0) {} // Wait for user input
-  char userChoice = Serial.read();
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.println("Do you want to");
+  lcd.setCursor(0,1);
+  lcd.println("read or write? (r/w)");
+  while (Serial.available() == 0) {Serial.println("input not given");} // Wait for user input
 
-  // Block number to read/write (modify as needed)
+  char userChoice = Serial.read();  // Block number to read/write (modify as needed)
   byte blockNumber = 4;
   MFRC522::MIFARE_Key key;
   for (byte i = 0; i < 6; i++) key.keyByte[i] = 0xFF; // Default key
 
-  // Authenticate the card
-  if (mfrc522.PCD_Authenticate(MFRC522::PICC_CMD_MF_AUTH_KEY_A, blockNumber, &key, &(mfrc522.uid)) != MFRC522::STATUS_OK) {
-    lcd.println("Authentication failed");
-    mfrc522.PICC_HaltA();
-    mfrc522.PCD_StopCrypto1();
-    return;
-  }
 
   if (userChoice == 'w') {
     // Write data to the card
-    lcd.println("Enter data to write (max 16 characters): ");
+    lcd.clear();
+    lcd.println("  Enter data to ");
+    lcd.setCursor(0,1);
+    lcd.println(" write (max 16): ");
     String dataToWrite = "";
     while (Serial.available() == 0) {} // Wait for user input
     while (Serial.available() > 0) {
@@ -152,6 +151,7 @@ void loop() {
 
   } else if (userChoice == 'r') {
     // Read data from the card
+    lcd.clear();
     byte buffer[18];  // Data buffer (16 bytes + 2 CRC bytes)
     byte size = sizeof(buffer);
 
@@ -160,7 +160,7 @@ void loop() {
       for (byte i = 0; i < 16; i++) {
         dataRead += (char)buffer[i];
       }
-      lcd.println("Data read from card: " + dataRead);
+      lcd.println("Data read from wcard: " + dataRead);
     } else {
       lcd.println("Failed to read data.");
     }
