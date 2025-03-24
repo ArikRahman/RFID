@@ -1,188 +1,111 @@
-#include <SPI.h>
-#include <MFRC522.h>
 #include <Wire.h>
+#include <Adafruit_INA219.h>
 #include <LiquidCrystal_I2C.h>
 
-#define RST_PIN 22
-#define SS_PIN  21
+const int PHOTODIODE_PIN = A0;
+const int LED_PIN = 13;
 
-MFRC522 rfid(SS_PIN, RST_PIN);
+Adafruit_INA219 ina219;
 LiquidCrystal_I2C lcd(0x27, 16, 2);
-MFRC522::MIFARE_Key key;
+
+const int PHOTODIODE_THRESHOLD = 300;
+volatile unsigned long pulseCount = 0;
+unsigned long lastTime = 0;
+float rpm = 0.0;
 
 void setup() {
-  Serial.begin(115200);
-  while (!Serial) { // Wait for Serial to initialize
-    delay(10);
-  }
-  SPI.begin();
-  rfid.PCD_Init();
-  lcd.begin();
+  Serial.begin(9600);
+  ina219.begin();
+  lcd.init();
   lcd.backlight();
-  
-  for (byte i = 0; i < 6; i++) {
-    key.keyByte[i] = 0xFF;
-  }
+  pinMode(PHOTODIODE_PIN, INPUT);
+  pinMode(LED_PIN, OUTPUT);
   
   lcd.setCursor(0, 0);
-  lcd.print("RFID Ready");
+  lcd.print("Motor Monitor");
   lcd.setCursor(0, 1);
-  lcd.print("1:Read 2:Write");
-  
-  Serial.println("RFID Reader Ready");
-  Serial.println("1. Read Card");
-  Serial.println("2. Write Card");
-  Serial.println("Enter choice (1 or 2):");
+  lcd.print("Starting...");
+  delay(2000);
+  lcd.clear();
 }
 
 void loop() {
-  if (Serial.available() > 0) {
-    String input = Serial.readStringUntil('\n'); // Read full line
-    
-    input.trim(); // Remove whitespace/newlines
-    Serial.print("Received input: '");
-    Serial.print(input);
-    Serial.println("'");
-    
-    if (input == "1") {
-      readRFID();
-    }
-    else if (input == "2") {
-      writeRFID();
-    }
-    else {
-      Serial.println("Invalid choice. Enter 1 or 2:");
-      lcd.clear();
-      lcd.setCursor(0, 0);
-      lcd.print("Invalid Choice");
-      delay(2000);
-    }
-    
-    lcd.clear();
-    lcd.setCursor(0, 0);
-    lcd.print("RFID Ready");
-    lcd.setCursor(0, 1);
-    lcd.print("1:Read 2:Write");
-    
-    Serial.println("\n1. Read Card");
-    Serial.println("2. Write Card");
-    Serial.println("Enter choice (1 or 2):");
-  }
-}
-
-void readRFID() {
-  lcd.clear();
-  lcd.print("Scanning...");
+  float shuntvoltage = ina219.getShuntVoltage_mV();
+  float busvoltage = ina219.getBusVoltage_V();
+  float current_mA = ina219.getCurrent_mA();
+  float voltage = busvoltage + (shuntvoltage / 1000);
+  float power = (voltage * current_mA) / 1000;
   
-  if (!rfid.PICC_IsNewCardPresent() || !rfid.PICC_ReadCardSerial()) {
-    Serial.println("No card detected");
-    lcd.clear();
-    lcd.print("No Card Found");
-    delay(2000);
-    return;
+  int photodiodeValue = analogRead(PHOTODIODE_PIN);
+  if (photodiodeValue > PHOTODIODE_THRESHOLD && !digitalRead(LED_PIN)) {
+    pulseCount++;
+    digitalWrite(LED_PIN, HIGH);
+    delay(50);
+    digitalWrite(LED_PIN, LOW);
   }
   
-  lcd.clear();
-  lcd.print("Card Found");
-  Serial.print("Card UID: ");
-  dump_byte_array(rfid.uid.uidByte, rfid.uid.size);
-  Serial.println();
-  
-  MFRC522::StatusCode status = rfid.PCD_Authenticate(MFRC522::PICC_CMD_MF_AUTH_KEY_A, 1, &key, &(rfid.uid));
-  if (status != MFRC522::STATUS_OK) {
-    Serial.println("Authentication failed");
-    lcd.clear();
-    lcd.print("Auth Failed");
-    delay(2000);
-    return;
+  unsigned long currentTime = millis();
+  if (currentTime - lastTime >= 1000) {
+    rpm = (pulseCount * 60.0) / 1.0;
+    pulseCount = 0;
+    lastTime = currentTime;
   }
   
-  byte buffer[18];
-  byte len = 18;
-  status = rfid.MIFARE_Read(1, buffer, &len);
-  if (status != MFRC522::STATUS_OK) {
-    Serial.println("Read failed");
-    lcd.clear();
-    lcd.print("Read Failed");
-    delay(2000);
-    return;
-  }
+  lcd.setCursor(0, 0);
+  lcd.print("V:");
+  lcd.print(voltage, 1);
+  lcd.print("V I:");
+  lcd.print(current_mA / 1000, 2);
+  lcd.print("A  ");
   
-  lcd.clear();
-  lcd.print("Data:");
   lcd.setCursor(0, 1);
-  Serial.print("Data read: ");
-  for (byte i = 0; i < 16; i++) {
-    Serial.write(buffer[i]);
-    if (i < 11) lcd.write(buffer[i]);
-  }
-  Serial.println();
-  delay(3000);
+  lcd.print("P:");
+  lcd.print(power, 1);
+  lcd.print("W RPM:");
+  lcd.print(rpm, 0);
+  lcd.print("  ");
   
-  rfid.PICC_HaltA();
-  rfid.PCD_StopCrypto1();
+  Serial.print(voltage);
+  Serial.print(",");
+  Serial.print(current_mA / 1000);
+  Serial.print(",");
+  Serial.print(power);
+  Serial.print(",");
+  Serial.println(rpm);
+  
+  delay(500);
 }
 
-void writeRFID() {
-  lcd.clear();
-  lcd.print("Place Card...");
-  
-  if (!rfid.PICC_IsNewCardPresent() || !rfid.PICC_ReadCardSerial()) {
-    Serial.println("No card detected");
-    lcd.clear();
-    lcd.print("No Card Found");
-    delay(2000);
-    return;
-  }
+void displayEngineSpecs() {
+  float wheelDiameter = 0.5;
+  float maxRPM = 300.0;
+  float generatorVoltage = 24.0;
+  float generatorCurrent = 5.0;
+  float maxPower = generatorVoltage * generatorCurrent;
   
   lcd.clear();
-  lcd.print("Enter Data:");
-  Serial.println("Enter data to write (max 16 chars):");
+  lcd.setCursor(0, 0);
+  lcd.print("Wheel:");
+  lcd.print(wheelDiameter, 1);
+  lcd.print("m RPM:");
+  lcd.print(maxRPM, 0);
   
-  while (Serial.available() == 0) {
-    delay(100);
-  }
+  lcd.setCursor(0, 1);
+  lcd.print("Max:");
+  lcd.print(maxPower, 0);
+  lcd.print("W");
   
-  String data = Serial.readStringUntil('\n');
-  data.trim();
-  Serial.print("Writing data: '");
-  Serial.print(data);
-  Serial.println("'");
+  Serial.println("Engine Specifications:");
+  Serial.print(wheelDiameter);
+  Serial.println("m");
+  Serial.print(maxRPM);
+  Serial.println("RPM");
+  Serial.print(generatorVoltage);
+  Serial.println("V");
+  Serial.print(generatorCurrent);
+  Serial.println("A");
+  Serial.print(maxPower);
+  Serial.println("W");
   
-  byte buffer[16];
-  for (byte i = 0; i < 16; i++) {
-    buffer[i] = (i < data.length()) ? data[i] : ' ';
-  }
-  
-  MFRC522::StatusCode status = rfid.PCD_Authenticate(MFRC522::PICC_CMD_MF_AUTH_KEY_A, 1, &key, &(rfid.uid));
-  if (status != MFRC522::STATUS_OK) {
-    Serial.println("Authentication failed");
-    lcd.clear();
-    lcd.print("Auth Failed");
-    delay(2000);
-    return;
-  }
-  
-  status = rfid.MIFARE_Write(1, buffer, 16);
-  if (status != MFRC522::STATUS_OK) {
-    Serial.println("Write failed");
-    lcd.clear();
-    lcd.print("Write Failed");
-    delay(2000);
-  } else {
-    Serial.println("Write successful");
-    lcd.clear();
-    lcd.print("Write Success");
-    delay(2000);
-  }
-  
-  rfid.PICC_HaltA();
-  rfid.PCD_StopCrypto1();
-}
-
-void dump_byte_array(byte *buffer, byte bufferSize) {
-  for (byte i = 0; i < bufferSize; i++) {
-    Serial.print(buffer[i] < 0x10 ? " 0" : " ");
-    Serial.print(buffer[i], HEX);
-  }
+  delay(5000);
 }
