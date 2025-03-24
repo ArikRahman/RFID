@@ -16,7 +16,7 @@ float rpm = 0.0;
 void setup() {
   Serial.begin(9600);
   ina219.begin();
-  lcd.init();
+  lcd.begin();
   lcd.backlight();
   pinMode(PHOTODIODE_PIN, INPUT);
   pinMode(LED_PIN, OUTPUT);
