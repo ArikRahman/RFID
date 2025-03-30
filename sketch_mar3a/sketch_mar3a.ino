@@ -12,12 +12,12 @@ MFRC522::MIFARE_Key key;
 
 void setup() {
   Serial.begin(115200);
-  while (!Serial) { // Wait for Serial to initialize
+  while (!Serial) {
     delay(10);
   }
   SPI.begin();
   rfid.PCD_Init();
-  lcd.begin();
+  lcd.begin();  
   lcd.backlight();
   
   for (byte i = 0; i < 6; i++) {
@@ -37,9 +37,8 @@ void setup() {
 
 void loop() {
   if (Serial.available() > 0) {
-    String input = Serial.readStringUntil('\n'); // Read full line
-    
-    input.trim(); // Remove whitespace/newlines
+    String input = Serial.readStringUntil('\n');
+    input.trim();
     Serial.print("Received input: '");
     Serial.print(input);
     Serial.println("'");
@@ -109,12 +108,17 @@ void readRFID() {
   }
   
   lcd.clear();
-  lcd.print("Data:");
+  lcd.print("Data (HEX):");
   lcd.setCursor(0, 1);
-  Serial.print("Data read: ");
-  for (byte i = 0; i < 16; i++) {
-    Serial.write(buffer[i]);
-    if (i < 11) lcd.write(buffer[i]);
+  Serial.print("Data read (HEX): ");
+  for (byte i = 0; i < 4; i++) {  // Limit to 4 bytes for LCD space
+    if (i < 2) {  // Display first 2 bytes on LCD
+      lcd.print(buffer[i] < 0x10 ? "0" : "");
+      lcd.print(buffer[i], HEX);
+      lcd.print(" ");
+    }
+    Serial.print(buffer[i] < 0x10 ? " 0" : " ");
+    Serial.print(buffer[i], HEX);
   }
   Serial.println();
   delay(3000);
