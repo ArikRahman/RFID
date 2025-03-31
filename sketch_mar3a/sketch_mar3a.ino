@@ -131,7 +131,7 @@ void writeRFID() {
   lcd.clear();
   lcd.print("Place Card...");
   
-  if (!rfid.PICC_IsNewCardPresent() || !rfid.PICC_ReadCardSerial()) {
+  if (!rfid.PICC_IsNewCardPresent() && !rfid.PICC_ReadCardSerial()) {
     Serial.println("No card detected");
     lcd.clear();
     lcd.print("No Card Found");
