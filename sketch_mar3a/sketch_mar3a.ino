@@ -11,11 +11,6 @@
 
 LiquidCrystal_I2C lcd(0x27, 16, 2);
 
-const char* ssid  = "yours";
-const char* password = "yours123";
-const int port = 80;
-WiFiServer server(port);
-WiFiClient  Client;
 
 
 #define SS_PIN D3
@@ -58,70 +53,30 @@ void setup() {
   pinMode(LED_BUILTIN, OUTPUT);
   digitalWrite(LED_BUILTIN, HIGH);
   WiFi.mode(WIFI_STA);
-  WiFi.begin(ssid, password);
+  
   Serial.println("Connecting to ");
-  Serial.println(ssid);
+  
   lcd.clear();
   lcd.setCursor(0, 0);
   lcd.print("Connecting...");
   lcd.setCursor(0, 1);
 
-  uint8_t i = 0;
-  while (WiFi.status() != WL_CONNECTED && i++ < 20) {
-    delay(500);
-  }
-  if (i == 21) {
-    lcd.clear();
-    lcd.setCursor(0, 0);
-    lcd.print("ERR conn :(");
-
-    Serial.println("Could not connect to");
-
-    Serial.println(ssid);
-    while (1) {
-      delay(500);
-    }
-  }
-  digitalWrite(LED_BUILTIN, HIGH);
-  server.begin();
-  server.setNoDelay(true);
-  Serial.println(WiFi.localIP());
-  Serial.println("port:" + String(port));
-  lcd.clear();
-
+  
+ 
   SPI.begin();
   mfrc522.PCD_Init();
 
   lcd.setCursor(0, 0);
   lcd.print("Deep 2023");
 
-  digitalWrite(BUZZER, HIGH);
+
   delay(1000);
-  digitalWrite(BUZZER, LOW);
+  
 
 }
 void loop() {
 
-  if (server.hasClient()) {
-    if (!Client || !Client.connected()) {
-      if (Client) {
-        Client.stop();
-      }
-      Client = server.available();
-    }
-  }
-
-
-  if (Client && Client.connected()) {
-    if (Client.available()) {
-      while (Client.available()) {
-        char data = Client.read();
-        Serial.println(data);
-      }
-    }
-  } else {
-
-  }
+  
 
   if ( ! mfrc522.PICC_IsNewCardPresent())
   {
@@ -148,7 +103,7 @@ void loop() {
   lcd.print("CI: ");
   lcd.print(content);
 
-  sendDatatoWIFI();
+  
   content = "";
 
   digitalWrite(BUZZER, HIGH);
@@ -159,13 +114,4 @@ void loop() {
 
 }
 
-void sendDatatoWIFI() {
-  if (content != "") {
-    int str_len = content.length() + 1;
-    char char_array[str_len];
-    content.toCharArray(char_array, str_len);
-    // Serial.println(content);
-    Serial.println(char_array);
-    Client.write(char_array);
-  }
-}
+
