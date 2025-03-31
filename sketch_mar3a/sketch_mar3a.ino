@@ -181,22 +181,7 @@ if(input == "2"){ // Hardcoded hex string; remove any spaces if present.
   }
 
 
-  /*
-  
-
-new starts here
-
-  */
-
-
-
-
-
-/*
-
-
-
-*/
+ 
 
 
   // Halt PICC and stop encryption on the PCD
