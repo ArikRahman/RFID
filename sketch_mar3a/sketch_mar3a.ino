@@ -93,35 +93,60 @@ void loop() {
   Serial.println("'");
 
   if (input == "1") {
-  // Check if a card is present and read its UID
+  // Check if a card is present and read its UID (needed for authentication)
   if (!mfrc522.PICC_IsNewCardPresent() || !mfrc522.PICC_ReadCardSerial()) {
     return;
   }
 
-  // Build the UID string
-  for (byte i = 0; i < mfrc522.uid.size; i++) {
-    content.concat(String(mfrc522.uid.uidByte[i] < 0x10 ? " 0" : " "));
-    content.concat(String(mfrc522.uid.uidByte[i], HEX));
+  // Define the block you want to read
+  byte blockAddress = 4;
+  // Buffer for the block data. Note: The buffer must be at least 18 bytes.
+  byte buffer[18];
+  // Size variable must be set to the buffer size; after read it holds the actual byte count.
+  byte size = sizeof(buffer);
+
+  // Authenticate using the default key (set in your setup)
+  MFRC522::StatusCode status;
+  status = mfrc522.PCD_Authenticate(MFRC522::PICC_CMD_MF_AUTH_KEY_A, blockAddress, &key, &(mfrc522.uid));
+  if (status != MFRC522::STATUS_OK) {
+    Serial.print("PCD_Authenticate() failed: ");
+    Serial.println(mfrc522.GetStatusCodeName(status));
+    return;
   }
-  content.toUpperCase();
-  Serial.println(content);
+
+  // Read data from block 4
+  status = mfrc522.MIFARE_Read(blockAddress, buffer, &size);
+  if (status != MFRC522::STATUS_OK) {
+    Serial.print("MIFARE_Read() failed: ");
+    Serial.println(mfrc522.GetStatusCodeName(status));
+    return;
+  }
+
+  // Convert the block data to a hex string for display
+  String blockData = "";
+  for (byte i = 0; i < 16; i++) {
+    blockData.concat(String(buffer[i] < 0x10 ? " 0" : " "));
+    blockData.concat(String(buffer[i], HEX));
+  }
+  blockData.toUpperCase();
+
+  Serial.println(blockData);
   lcd.clear();
   lcd.setCursor(0, 0);
-  lcd.print("CI: ");
-  lcd.print(content);
+  lcd.print("B4: ");
+  lcd.print(blockData);
 
-  // Halt the card and stop encryption so that it can be re-detected
+  // Halt the card and stop encryption so it can be re-detected
   mfrc522.PICC_HaltA();
   mfrc522.PCD_StopCrypto1();
   
-  content = "";
-
   digitalWrite(BUZZER, HIGH);
   delay(500);
   digitalWrite(BUZZER, LOW);
-
+  
   delay(1000);
 }
+
 
 if (input == "2") {
   String data = "0A1B1C1D";
