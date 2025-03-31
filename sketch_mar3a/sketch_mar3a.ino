@@ -73,7 +73,13 @@ void readRFID() {
   lcd.clear();
   lcd.print("Scanning...");
   
-  if (!rfid.PICC_IsNewCardPresent() || !rfid.PICC_ReadCardSerial()) {
+  if (rfid.PICC_IsNewCardPresent()){
+        Serial.println("True");
+
+
+  }
+  if (rfid.PICC_ReadCardSerial()){Serial.println("True");}
+  if (!rfid.PICC_IsNewCardPresent() && !rfid.PICC_ReadCardSerial()) {
     Serial.println("No card detected");
     lcd.clear();
     lcd.print("No Card Found");
