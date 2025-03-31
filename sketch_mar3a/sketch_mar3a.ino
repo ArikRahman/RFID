@@ -92,35 +92,27 @@ void loop() {
   Serial.print(input);
   Serial.println("'");
 
-  if(input == "1"){
-  
-  
-
-  if ( ! mfrc522.PICC_IsNewCardPresent())
-  {
+  if (input == "1") {
+  // Check if a card is present and read its UID
+  if (!mfrc522.PICC_IsNewCardPresent() || !mfrc522.PICC_ReadCardSerial()) {
     return;
   }
 
-  if ( ! mfrc522.PICC_ReadCardSerial())
-  {
-    return;
-  }
-
-  byte letter;
-  for (byte i = 0; i < mfrc522.uid.size; i++)
-  {
+  // Build the UID string
+  for (byte i = 0; i < mfrc522.uid.size; i++) {
     content.concat(String(mfrc522.uid.uidByte[i] < 0x10 ? " 0" : " "));
     content.concat(String(mfrc522.uid.uidByte[i], HEX));
   }
-
   content.toUpperCase();
   Serial.println(content);
-
   lcd.clear();
   lcd.setCursor(0, 0);
   lcd.print("CI: ");
   lcd.print(content);
 
+  // Halt the card and stop encryption so that it can be re-detected
+  mfrc522.PICC_HaltA();
+  mfrc522.PCD_StopCrypto1();
   
   content = "";
 
@@ -129,41 +121,34 @@ void loop() {
   digitalWrite(BUZZER, LOW);
 
   delay(1000);
-  }
+}
 
+if (input == "2") {
+  String data = "0A1B1C1D";
+  data.replace(" ", "");  // Remove spaces if any
 
-
-
-
-
-if(input == "2"){ // Hardcoded hex string; remove any spaces if present.
-  String data = "0A1B1C1D"; 
-  data.replace(" ", "");  // Optional: remove spaces if needed
-
-  // Convert the hex string to a 16-byte array (pad if necessary)
+  // Convert hex string to a 16-byte array, padding with zeros if needed
   int byteCount = data.length() / 2;
-  byte writeData[16];  // Must be 16 bytes exactly
-  
-  // Convert every two hex characters into a byte
+  byte writeData[16];  // We need exactly 16 bytes for a block
+
   for (int i = 0; i < byteCount; i++) {
     String byteStr = data.substring(i * 2, i * 2 + 2);
     writeData[i] = (byte) strtol(byteStr.c_str(), NULL, 16);
   }
-  // Pad remaining bytes with zeros if data is less than 16 bytes
   for (int i = byteCount; i < 16; i++) {
     writeData[i] = 0;
   }
 
-  // Check for a new card and read its UID before attempting write
+  // Ensure a card is present and read its UID for authentication
   if (!mfrc522.PICC_IsNewCardPresent() || !mfrc522.PICC_ReadCardSerial()) {
     Serial.println("No card present or failed to read card.");
     return;
   }
-  
-  byte blockAddress = 4;  // Adjust this to the correct block for your application
+
+  byte blockAddress = 0;  // Set the block address to write to
   MFRC522::StatusCode status;
   
-  // Authenticate using the default key (0xFF 6 times)
+  // Authenticate with the card using the default key
   status = mfrc522.PCD_Authenticate(MFRC522::PICC_CMD_MF_AUTH_KEY_A, blockAddress, &key, &(mfrc522.uid));
   if (status != MFRC522::STATUS_OK) {
     Serial.print("PCD_Authenticate() failed: ");
@@ -171,7 +156,7 @@ if(input == "2"){ // Hardcoded hex string; remove any spaces if present.
     return;
   }
 
-  // Write the 16-byte block to the card
+  // Write the block
   status = mfrc522.MIFARE_Write(blockAddress, writeData, 16);
   if (status != MFRC522::STATUS_OK) {
     Serial.print("MIFARE_Write() failed: ");
@@ -180,13 +165,10 @@ if(input == "2"){ // Hardcoded hex string; remove any spaces if present.
     Serial.println("Data written successfully!");
   }
 
-
- 
-
-
-  // Halt PICC and stop encryption on the PCD
+  // Halt and stop crypto to finalize the transaction
   mfrc522.PICC_HaltA();
   mfrc522.PCD_StopCrypto1();
+}
 
 }
 
@@ -194,7 +176,6 @@ if(input == "2"){ // Hardcoded hex string; remove any spaces if present.
 
 
 
-}
 
   
 
