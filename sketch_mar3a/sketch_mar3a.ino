@@ -88,9 +88,9 @@ void loop() {
   lcd.print("Enter an input...");
   String input = Serial.readStringUntil('\n');
   input.trim();
-  Serial.print("Received input: '");
-  Serial.print(input);
-  Serial.println("'");
+  //Serial.print("Received input: '");
+  //Serial.print(input);
+  //Serial.println("'");
 
   if (input == "1") {
   // Check if a card is present and read its UID (needed for authentication)
@@ -99,7 +99,7 @@ void loop() {
   }
 
   // Define the block you want to read
-  byte blockAddress = 4;
+  byte blockAddress = 0;
   // Buffer for the block data. Note: The buffer must be at least 18 bytes.
   byte buffer[18];
   // Size variable must be set to the buffer size; after read it holds the actual byte count.
